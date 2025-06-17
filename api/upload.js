@@ -1,103 +1,49 @@
-import fetch from 'node-fetch';
-import FormData from 'form-data';
+export const config = {
+  api: {
+    bodyParser: false,
+  },
+};
+
+import formidable from 'formidable';
+import fs from 'fs';
 
 export default async function handler(req, res) {
-  res.setHeader("Access-Control-Allow-Origin", "*");
-  res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
-  res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
 
   if (req.method === 'OPTIONS') {
-    res.status(200).end();
-    return;
+    return res.status(200).end();
   }
 
-  if (req.method !== 'POST') {
-    return res.status(405).json({ error: 'Método no permitido' });
-  }
-
-  const { apikey } = req.query;
-
+  const apikey = req.query.apikey;
   if (!apikey) {
-    return res.status(400).json({ error: 'Falta la API Key' });
+    return res.status(400).json({ error: 'API Key is required' });
   }
 
-  const chunks = [];
-  req.on('data', chunk => chunks.push(chunk));
-  req.on('end', async () => {
-    const buffer = Buffer.concat(chunks);
-
-    const form = new FormData();
-    form.append('file', buffer, {
-      filename: req.headers['x-filename'] || 'archivo.bin',
-      contentType: req.headers['content-type']
-    });
-
-    try {
-      const response = await fetch('https://pixeldrain.com/api/file', {
-        method: 'POST',
-        body: form,
-        headers: {
-          Authorization: `Bearer ${apikey}`,
-          ...form.getHeaders()
-        }
-      });
-
-      const data = await response.json();
-      res.status(response.status).json(data);
-    } catch (err) {
-      res.status(500).json({ error: 'Error interno', detalle: err.message });
+  const form = new formidable.IncomingForm({ maxFileSize: 1024 * 1024 * 100 }); // 100MB
+  form.parse(req, async (err, fields, files) => {
+    if (err || !files.file) {
+      return res.status(500).json({ error: 'Error parsing file' });
     }
-  });
-}
-// api/upload.js
-import fetch from 'node-fetch';
-import FormData from 'form-data';
 
-export default async function handler(req, res) {
-  res.setHeader("Access-Control-Allow-Origin", "*");
-  res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
-  res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
-
-  if (req.method === 'OPTIONS') {
-    res.status(200).end();
-    return;
-  }
-
-  if (req.method !== 'POST') {
-    return res.status(405).json({ error: 'Método no permitido' });
-  }
-
-  const { apikey } = req.query;
-
-  if (!apikey) {
-    return res.status(400).json({ error: 'Falta la API Key' });
-  }
-
-  const chunks = [];
-  req.on('data', chunk => chunks.push(chunk));
-  req.on('end', async () => {
-    const buffer = Buffer.concat(chunks);
-
-    const form = new FormData();
-    form.append('file', buffer, {
-      filename: req.headers['x-filename'] || 'archivo.bin',
-      contentType: req.headers['content-type']
-    });
+    const file = files.file[0];
 
     try {
-      const response = await fetch('https://pixeldrain.com/api/file', {
+      const data = fs.createReadStream(file.filepath);
+      const uploadRes = await fetch('https://pixeldrain.com/api/file', {
         method: 'POST',
-        body: form,
         headers: {
           Authorization: `Bearer ${apikey}`,
-          ...form.getHeaders()
-        }
+        },
+        body: data,
       });
 
-      const data = await response.json();
-      res.status(response.status).json(data);
-    } catch (err) {
-      res.status(500).json({ error: 'Error interno', detalle: err.message });
+      const result = await uploadRes.json();
+
+      return res.status(uploadRes.status).json(result);
+    } catch (error) {
+      return res.status(500).json({ error: 'Error uploading to pixeldrain' });
     }
   });
 }
