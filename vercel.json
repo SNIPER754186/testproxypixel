@@ -8,14 +8,15 @@
   ],
   "functions": {
     "api/upload.js": {
-      "maxDuration": 30,
-      "memory": 512
+      "memory": 512,
+      "maxDuration": 30
     }
   },
   "routes": [
     {
-      "src": "/api/(.*)",
-      "dest": "/api/$1"
+      "src": "/api/upload",
+      "methods": ["POST", "OPTIONS"],
+      "dest": "api/upload.js"
     }
   ]
 }
