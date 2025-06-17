@@ -1,10 +1,7 @@
 {
-  "name": "pixeldrain-upload-proxy",
+  "name": "SNIPER754186",   // puedes poner "testproxypixel" o cualquier nombre
   "version": "1.0.0",
   "main": "api/upload.js",
-  "scripts": {
-    "start": "vercel dev"
-  },
   "dependencies": {
     "node-fetch": "^3.4.1"
   }
