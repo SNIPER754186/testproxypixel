@@ -1,8 +1,10 @@
 {
-  "name": "SNIPER754186",
+  "name": "pixeldrain-proxy",
   "version": "1.0.0",
+  "type": "module",
   "main": "api/upload.js",
   "dependencies": {
+    "form-data": "^4.0.0",
     "node-fetch": "^3.4.1"
   }
 }
