@@ -1,46 +1,57 @@
+import fetch from 'node-fetch'; // si usas node 18+ ya no hace falta importarlo
 
 export const config = {
   api: {
-    bodyParser: false,
+    bodyParser: false, // para manejar form-data manualmente (opcional)
   },
 };
 
-import formidable from "formidable";
-import fs from "fs";
-import fetch from "node-fetch";
-
 export default async function handler(req, res) {
-  if (req.method !== "POST") {
-    return res.status(405).json({ error: "Método no permitido" });
+  // Permitir CORS
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+
+  if (req.method === 'OPTIONS') {
+    return res.status(200).end();
   }
 
-  const apiKey = req.query.apikey || "";
-  const form = new formidable.IncomingForm({ multiples: false });
+  if (req.method !== 'POST') {
+    return res.status(405).json({ error: 'Método no permitido' });
+  }
 
-  form.parse(req, async (err, fields, files) => {
-    if (err || !files.file) {
-      return res.status(400).json({ error: "Archivo no válido" });
+  try {
+    // El API key lo pasamos en la query: /api/upload?apikey=...
+    const apiKey = req.query.apikey || '';
+    if (!apiKey) {
+      return res.status(400).json({ error: 'API Key no proporcionada' });
     }
 
-    const file = files.file;
-    const fileStream = fs.createReadStream(file.filepath);
+    // Para reenviar el body con form-data, podemos usar busboy o alguna librería
+    // pero para prueba rápida usaremos el raw body
 
-    const formData = new FormData();
-    formData.append("file", fileStream, file.originalFilename);
-
-    try {
-      const upload = await fetch("https://pixeldrain.com/api/file", {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${apiKey}`,
-        },
-        body: formData,
-      });
-
-      const result = await upload.json();
-      return res.status(200).json(result);
-    } catch (error) {
-      return res.status(500).json({ error: "Error al subir a Pixeldrain" });
+    // Leer el buffer del body:
+    const chunks = [];
+    for await (const chunk of req) {
+      chunks.push(chunk);
     }
-  });
+    const rawBody = Buffer.concat(chunks);
+
+    // Reenviar la petición a pixeldrain
+    const response = await fetch('https://pixeldrain.com/api/file', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+        'Content-Type': req.headers['content-type'] || 'application/octet-stream',
+      },
+      body: rawBody,
+    });
+
+    const json = await response.json();
+
+    // Responder con la respuesta de pixeldrain
+    res.status(response.status).json(json);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
 }
