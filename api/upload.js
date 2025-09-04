@@ -1,49 +1,30 @@
-export const config = {
-  api: {
-    bodyParser: false,
-  },
-};
-
-import formidable from 'formidable';
-import fs from 'fs';
-
 export default async function handler(req, res) {
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  const { url } = req.query;
 
-  if (req.method === 'OPTIONS') {
-    return res.status(200).end();
+  if (!url) {
+    res.status(400).send("❌ Parámetro 'url' requerido.");
+    return;
   }
 
-  const apikey = req.query.apikey;
-  if (!apikey) {
-    return res.status(400).json({ error: 'API Key is required' });
+  const allowedDomain = "vod.tuxchannel.mx";
+  try {
+    const targetUrl = new URL(url);
+    if (!targetUrl.hostname.endsWith(allowedDomain)) {
+      return res.status(403).send("❌ Dominio no permitido.");
+    }
+  } catch (err) {
+    return res.status(400).send("❌ URL inválida.");
   }
 
-  const form = new formidable.IncomingForm({ maxFileSize: 1024 * 1024 * 100 }); // 100MB
-  form.parse(req, async (err, fields, files) => {
-    if (err || !files.file) {
-      return res.status(500).json({ error: 'Error parsing file' });
-    }
+  try {
+    const response = await fetch(url);
+    if (!response.ok) throw new Error("❌ No se pudo acceder al video.");
 
-    const file = files.file[0];
+    res.setHeader("Content-Type", response.headers.get("content-type") || "application/octet-stream");
+    res.setHeader("Access-Control-Allow-Origin", "*");
 
-    try {
-      const data = fs.createReadStream(file.filepath);
-      const uploadRes = await fetch('https://pixeldrain.com/api/file', {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${apikey}`,
-        },
-        body: data,
-      });
-
-      const result = await uploadRes.json();
-
-      return res.status(uploadRes.status).json(result);
-    } catch (error) {
-      return res.status(500).json({ error: 'Error uploading to pixeldrain' });
-    }
-  });
+    response.body.pipe(res);
+  } catch (error) {
+    res.status(500).send(error.message || "❌ Error al obtener el archivo.");
+  }
 }
